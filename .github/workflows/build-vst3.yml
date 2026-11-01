@@ -1,0 +1,52 @@
+name: Bygg Universal VST3 (macOS)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Bygg på macOS (Universal)
+    runs-on: macos-14 # Kör på Apple Silicon runner för snabbast möjliga kompilering
+
+    steps:
+      - name: Hämta källkod
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Installera verktyg (Ninja)
+        run: |
+          brew install ninja
+
+      - name: Konfigurera CMake (Universal Binary)
+        run: |
+          cmake -B build -G "Ninja" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
+            -DCMAKE_CXX_FLAGS="-O3 -ffast-math"
+
+      - name: Kompilera VST3
+        run: |
+          cmake --build build --config Release --parallel 4
+
+      - name: Verifiera Universal Binary
+        run: |
+          echo "Kontrollerar arkitekturer för VST3-binären:"
+          lipo -info build/*_artefacts/Release/VST3/*.vst3/Contents/MacOS/* || lipo -info build/*.vst3/Contents/MacOS/*
+
+      - name: Packa ihop artefakt (.zip)
+        run: |
+          cd build
+          # Letar reda på VST3-paketet oavsett var Cmake spottar ur det i artefakterna
+          find . -name "*.vst3" -type d -exec zip -r Slagverk-Universal-VST3.zip {} +
+
+      - name: Spara VST3 som bygg-artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: MASKINHALLEN-SLAGVERK-VST3-macOS
+          path: build/*.zip
+          retention-days: 30
